@@ -40,3 +40,9 @@ body {
   width: 100%;
   justify-content: center;
 }
+
+#videoPlayer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+}
