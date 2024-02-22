@@ -1,4 +1,4 @@
-import React, { useState, MouseEvent, useRef, TouchEvent, useEffect, useCallback, RefObject } from "react";
+import React, { useState, MouseEvent, useRef, TouchEvent, useEffect, useCallback, RefObject, useLayoutEffect } from "react";
 import circle from "./assets/ellipse-outline.svg";
 import square from "./assets/square-outline.svg";
 import line from "./assets/line.svg";
@@ -20,14 +20,25 @@ interface CanvasElementsProps {
   updatedAt: number,
 };
 
+type AppStateProps = {
+  zoom: number,
+  offset: {
+    x: number,
+    y: number
+  },
+}
 function DrawingBoard() {
   const toolList = ["selection", "rectangle", "circle", "line", "eraser"];
 
   const [selectedElement, setSelectedElement] = useState<number>(-1)
   const [isDrag, setIsDrag] = useState(false);
   // const [isResizeDrag, setIsResizeDrag] = useState(false);
+
+  const [zoomOffset, setZoomOffset] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState<number>(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
   const [isDrawing, setIsDrawing] = useState(false);
-  const [elements, setElements] = useState<CanvasElementsProps[]>([]);
+  const [elements, setElements] = useState<CanvasElementsProps[]>(JSON.parse(localStorage.getItem("drawingApp") || "[]"));
   const [tool, setTool] = useState<number>(1);
   const [toolProps, setToolProps] = useState({ strokeWidth: 3, stroke: "#000000", fill: false, fillColor: "#658afe" });
   const [recordCanvasState, setRecordCanvasState] = useState<boolean>(false);
@@ -50,25 +61,39 @@ function DrawingBoard() {
   }
   const drawCanvas = () => {
     if (canvas.current) {
+      localStorage.setItem("drawingApp", JSON.stringify(elements));
       ctx = canvas.current.getContext("2d") as CanvasRenderingContext2D;
       ctx.lineCap = "round";
-      ctx.clearRect(0, 0, canvas.current.width, canvas.current.height);
+      ctx.clearRect(0, 0, canvas.current!.width, canvas.current!.height);
       if (ghostCanvas == null) {
         initGhostCanvas();
       }
       // Changing canvas bg to white for recording of the canvas to be non transparent
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, canvas.current!.width, canvas.current!.height);
+      ctx.save();
+      ctx.scale(zoom, zoom);
+      // ctx.translate(panOffset.x * zoom, panOffset.y * zoom);
+      const translateX = panOffset.x + (zoomOffset.x * (1 - zoom)) / zoom;
+      const translateY = panOffset.y + (zoomOffset.y * (1 - zoom)) / zoom;
+      ctx.translate(translateX, translateY);
+
+      ctx.strokeStyle = "#000000"
       elements.forEach((element) => {
         drawShapeOnCanvas(ctx, element)
       });
+      ctx.restore();
     }
   }
 
+  const zoomCanvas = (deltaY: number) => {
+    setZoom(prevState => Math.max(Math.min(prevState + deltaY, 5), 0.2));
+  }
+
   const drawShapeOnCanvas = (ctx: CanvasRenderingContext2D, props: CanvasElementsProps) => {
-    const { x, y, type, width, height, strokeWidth, fill, fillColor, stroke } = props;
+    let { x, y, type, width, height, strokeWidth, fill, fillColor, stroke } = props;
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
+    ctx.lineWidth = strokeWidth * zoom;
     ctx.lineCap = "round";
     ctx.fillStyle = fillColor;
     if (ctx === gctx)
@@ -93,75 +118,49 @@ function DrawingBoard() {
   }
 
   useEffect(() => {
-    const objects = localStorage.getItem("drawingApp");
-    if (objects)
-      setElements(JSON.parse(objects));
+    canvas.current?.addEventListener("wheel", (e) => handleScroll(e), { passive: false })
+    return () => {
+      canvas.current?.removeEventListener("wheel", handleScroll);
+    }
   }, [])
 
   useEffect(() => {
     drawCanvas();
-
-    localStorage.setItem("drawingApp", JSON.stringify(elements));
-  }, [elements])
-
-  /**
-    @params  
-    x: number,
-    y: number,
-    type: String,
-    width: number,
-    height: number,
-    strokeWidth: number,
-    stroke: String,
-    fill: Boolean,
-    rotation: number,
-    updatedAt: Date,
-  */
-  // const generateElement = (props: CanvasElementsProps): CanvasElement => {
-  //
-  //   const { x, y, type, width, height, strokeWidth, stroke, fill, fillColor, rotation, updatedAt } = props;
-  //   var roughElement = generator.rectangle(x, y, width, height);
-  //   switch (type) {
-  //     case "rectangle":
-  //       roughElement = generator.rectangle(x, y, width, height, { strokeWidth, stroke });
-  //       break;
-  //     case "line":
-  //       roughElement = generator.line(x, y, width + x, height + y, { strokeWidth, stroke });
-  //       break;
-  //     case "circle":
-  //       roughElement = generator.ellipse(x + width / 2, y + height / 2, width, height, { strokeWidth, stroke });
-  //       break;
-  //     default:
-  //       break;
-  //   }
-  //   return { x, y, type, width, height, strokeWidth, stroke, fill, fillColor, rotation, updatedAt, roughElement };
-  // }
+  }, [elements, zoom, panOffset])
 
   const clearContext = (ctx: CanvasRenderingContext2D) => {
     ctx.clearRect(0, 0, canvas.current!.width, canvas.current!.height);
   }
-
+  const getMouseCoordinates = (event: MouseEvent) => {
+    const clientX = (event.clientX - panOffset.x + (zoomOffset.x * (1 - zoom)) / zoom);
+    const clientY = (event.clientY - panOffset.y + (zoomOffset.y * (1 - zoom)) / zoom)
+    console.log({ clientX, clientY, a: event.clientX, b: event.clientY })
+    return { clientX, clientY };
+  };
   const handleMouseDown = (event: MouseEvent) => {
-    const { clientX, clientY } = event;
+    const { clientX, clientY } = getMouseCoordinates(event);
     if (tool == 0) {
 
       if (!ghostCanvas) {
         initGhostCanvas();
       }
 
+      gctx.save();
+      gctx.strokeStyle = "#ff0000"
       for (var i = elements.length - 1; i >= 0; i--) {
         drawShapeOnCanvas(gctx, elements[i]);
         var imgData = gctx.getImageData(clientX, clientY, 1, 1);
-        ;
 
         if (imgData.data[3] > 0) {
           setIsDrag(true);
           setSelectedElement(i);
-          clearContext(gctx);
+          gctx.restore();
+          // clearContext(gctx);
           return;
         }
       }
       setSelectedElement(-1);
+      gctx.restore();
       clearContext(gctx);
     } else {
       setIsDrawing(true);
@@ -182,7 +181,7 @@ function DrawingBoard() {
     }
   }
   const handleMouseMove = (event: MouseEvent) => {
-    const { clientX, clientY } = event;
+    const { clientX, clientY } = getMouseCoordinates(event);
     if (isDrawing) {
 
       const index = elements.length - 1;
@@ -240,10 +239,12 @@ function DrawingBoard() {
         initGhostCanvas();
       }
 
+      gctx.save();
+      gctx.scale(zoom, zoom);
+      gctx.translate(panOffset.x / zoom, panOffset.y / zoom);
       for (var i = elements.length - 1; i >= 0; i--) {
         drawShapeOnCanvas(gctx, elements[i]);
         var imgData = gctx.getImageData(clientX, clientY, 1, 1);
-        ;
 
         if (imgData.data[3] > 0) {
           setIsDrag(true);
@@ -252,6 +253,7 @@ function DrawingBoard() {
           return;
         }
       }
+      gctx.restore();
       setSelectedElement(-1);
       clearContext(gctx);
     } else {
@@ -320,7 +322,20 @@ function DrawingBoard() {
   const handleTouchUp = (_e: TouchEvent<HTMLCanvasElement>) => {
     setIsDrawing(false);
     setIsDrag(false);
-    ;
+  }
+
+  const handleScroll = (e: WheelEvent) => {
+    e.preventDefault();
+    if (e.ctrlKey === true) {
+      zoomCanvas(e.deltaY * -0.01);
+      // console.log(e)
+      setZoomOffset({ x: e.clientX, y: e.clientY });
+    } else {
+      setPanOffset(prevState => {
+        return { x: (prevState.x - e.deltaX), y: (prevState.y - e.deltaY) }
+      }
+      );
+    }
   }
 
   const handleToolClick = (toolNum: number) => {
@@ -329,6 +344,7 @@ function DrawingBoard() {
     tools.forEach(tool => tool.classList.remove("selected"));
     tools[toolNum].classList.add("selected");
   }
+
 
   return (
     <>
@@ -339,7 +355,6 @@ function DrawingBoard() {
         <li><button className={"tool-icon"} onClick={() => handleToolClick(3)}><img src={line} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => handleToolClick(4)}><img src={eraser} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => setElements([])}><img src={deleteIcon} width={20} height={20} /></button></li>
-
       </ul>
       <ul style={{ marginTop: "40px", position: "absolute" }}>
         <li>
@@ -400,6 +415,17 @@ function DrawingBoard() {
             }
             } /> <label>Fill Color</label>
         </li>
+        <li>
+          <span onClick={() => {
+            setZoom(1)
+            setZoomOffset({ x: 0, y: 0 })
+          }}>
+            {new Intl.NumberFormat("en-US", { style: "percent" }).format(zoom)}
+          </span>
+          <span>
+            {JSON.stringify(panOffset)}
+          </span>
+        </li>
       </ul>
 
       {true && <VideoRecordingComponent canvasRef={canvas} recordCanvasState={recordCanvasState} setRecordCanvasState={setRecordCanvasState} />}
@@ -421,8 +447,13 @@ function DrawingBoard() {
       </canvas>
     </>);
 }
+type VideoComponentProps = {
+  canvasRef: RefObject<HTMLCanvasElement>,
+  recordCanvasState: boolean,
+  setRecordCanvasState: React.Dispatch<React.SetStateAction<boolean>>
+}
 
-const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvasState }: { canvasRef: RefObject<HTMLCanvasElement>, recordCanvasState: boolean, setRecordCanvasState: React.Dispatch<React.SetStateAction<boolean>> }) => {
+const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvasState }: VideoComponentProps) => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder>();
   const chunks = useRef<Blob[]>([]);
   const [videoURL, setVideoURL] = useState<string>();
@@ -436,26 +467,20 @@ const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvas
       const videoURI = URL.createObjectURL(blobOfChunks);
       console.log({ videoURI, chunks });
 
-      // setChunks();
       setVideoURL(videoURI);
     };
 
     const handleDataAvailable = (e: BlobEvent) => {
       console.log(e.data);
-      // setChunks(prevData => [...prevData, e.data]);
       chunks.current = [e.data];
     };
 
     if (canvas) {
-      console.log("ehheheheheh")
-
-      videoStream = canvas.captureStream(30);
+      videoStream = canvas.captureStream(60);
       mediaRecorderNew = new MediaRecorder(videoStream);
       mediaRecorderNew.ondataavailable = handleDataAvailable;
       mediaRecorderNew.onstop = handleStop;
       setMediaRecorder(mediaRecorderNew)
-    } else {
-      console.log("yoyoyoooo")
     }
     return () => {
       if (mediaRecorderNew && mediaRecorderNew.state == "recording") {
@@ -465,11 +490,11 @@ const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvas
 
   }, [canvas])
 
-  useEffect(() => {
+  // useEffect(() => {
+  //   const streamer = document.getElementById("videoStreamer") as HTMLVideoElement;
+  //   streamer.load();
+  // }, [videoURL])
 
-    const streamer = document.getElementById("videoStreamer") as HTMLVideoElement;
-    streamer.load();
-  }, [videoURL])
   const recordCanvas = useCallback(() => {
     if (mediaRecorder) {
       console.log("part1");
@@ -487,8 +512,6 @@ const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvas
   return (
     <div id="videoPlayer">
       <button className={"tool-icon"} onClick={!recordCanvasState ? recordCanvas : stopRecording}>{!recordCanvasState ? "StartRecording" : "StopRecording"}</button>
-      <video id="videoStreamer" src={videoURL} width={384} height={216} autoPlay controls>
-      </video>
       {chunks.current.length > 0 ? <a href={videoURL} download={"file.webm"}>DOWNLOAD VIDEO</a> : <></>}
     </div>
   )

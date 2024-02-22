@@ -12,9 +12,9 @@ body {
   overflow: hidden;
 }
 
-#canvas {
-  background: #fff;
-}
+/* #canvas { */
+/*   background: #fff; */
+/* } */
 
 .tool-icon {
   border: none;
