@@ -1,4 +1,4 @@
-import React, { useState, MouseEvent, useRef, TouchEvent, useEffect, useCallback, RefObject, useLayoutEffect } from "react";
+import React, { useState, MouseEvent, useRef, TouchEvent, useEffect, useCallback, RefObject } from "react";
 import circle from "./assets/ellipse-outline.svg";
 import square from "./assets/square-outline.svg";
 import line from "./assets/line.svg";
@@ -20,13 +20,6 @@ interface CanvasElementsProps {
   updatedAt: number,
 };
 
-type AppStateProps = {
-  zoom: number,
-  offset: {
-    x: number,
-    y: number
-  },
-}
 function DrawingBoard() {
   const toolList = ["selection", "rectangle", "circle", "line", "eraser"];
 
