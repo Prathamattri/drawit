@@ -1,4 +1,4 @@
-import React, { useState, MouseEvent, useRef, TouchEvent, useEffect, useCallback, RefObject } from "react";
+import React, { useState, MouseEvent, useRef, useEffect, useCallback, RefObject } from "react";
 import circle from "./assets/ellipse-outline.svg";
 import square from "./assets/square-outline.svg";
 import line from "./assets/line.svg";
@@ -27,12 +27,13 @@ function DrawingBoard() {
   const [isDrag, setIsDrag] = useState(false);
   // const [isResizeDrag, setIsResizeDrag] = useState(false);
 
+  const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [zoomOffset, setZoomOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState<number>(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
   const [isDrawing, setIsDrawing] = useState(false);
   const [elements, setElements] = useState<CanvasElementsProps[]>(JSON.parse(localStorage.getItem("drawingApp") || "[]"));
-  const [tool, setTool] = useState<number>(1);
+  const [tool, setTool] = useState<number>(0);
   const [toolProps, setToolProps] = useState({ strokeWidth: 3, stroke: "#000000", fill: false, fillColor: "#658afe" });
   const [recordCanvasState, setRecordCanvasState] = useState<boolean>(false);
 
@@ -46,7 +47,6 @@ function DrawingBoard() {
   var ctx = canvas.current?.getContext("2d") as CanvasRenderingContext2D;
 
   function initGhostCanvas() {
-    if (!canvas.current) console.log("nah!!!!");
     ghostCanvas = document.createElement('canvas');
     ghostCanvas.width = canvas.current!.width;
     ghostCanvas.height = canvas.current!.height;
@@ -57,16 +57,14 @@ function DrawingBoard() {
       localStorage.setItem("drawingApp", JSON.stringify(elements));
       ctx = canvas.current.getContext("2d") as CanvasRenderingContext2D;
       ctx.lineCap = "round";
-      ctx.clearRect(0, 0, canvas.current!.width, canvas.current!.height);
-      if (ghostCanvas == null) {
-        initGhostCanvas();
-      }
+      clearContext(ctx);
       // Changing canvas bg to white for recording of the canvas to be non transparent
+
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, canvas.current!.width, canvas.current!.height);
       ctx.save();
       ctx.scale(zoom, zoom);
-      // ctx.translate(panOffset.x * zoom, panOffset.y * zoom);
+
       const translateX = panOffset.x + (zoomOffset.x * (1 - zoom)) / zoom;
       const translateY = panOffset.y + (zoomOffset.y * (1 - zoom)) / zoom;
       ctx.translate(translateX, translateY);
@@ -86,20 +84,34 @@ function DrawingBoard() {
   const drawShapeOnCanvas = (ctx: CanvasRenderingContext2D, props: CanvasElementsProps) => {
     let { x, y, type, width, height, strokeWidth, fill, fillColor, stroke } = props;
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth * zoom;
+    ctx.lineWidth = Math.min(Math.max(strokeWidth * zoom, 1), 5);
     ctx.lineCap = "round";
     ctx.fillStyle = fillColor;
-    if (ctx === gctx)
-      ctx.lineWidth = strokeWidth + 4;
+
+    if (type != "line") {
+      if (width < 0) {
+        x += width;
+        width *= -1;
+      }
+      if (height < 0) {
+        y += height;
+        height *= -1;
+      }
+    }
     if (type === "rectangle") {
       if (fill === true) {
         ctx.fillRect(x, y, width, height);
       }
       ctx.strokeRect(x, y, width, height);
     } else if (type === "circle") {
-      const radius = Math.sqrt(Math.pow(width, 2) + Math.pow(height, 2));
+      const radX = width / 2;
+      const radY = height / 2;
+
+      const centerX = x + radX;
+      const centerY = y + radY;
+
       ctx.beginPath();
-      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.ellipse(centerX, centerY, radX, radY, 0, 0, Math.PI * 2);
       ctx.stroke();
       if (fill) ctx.fill();
     } else if (type === "line") {
@@ -125,9 +137,9 @@ function DrawingBoard() {
     ctx.clearRect(0, 0, canvas.current!.width, canvas.current!.height);
   }
   const getMouseCoordinates = (event: MouseEvent) => {
-    const clientX = (event.clientX - panOffset.x + (zoomOffset.x * (1 - zoom)) / zoom);
-    const clientY = (event.clientY - panOffset.y + (zoomOffset.y * (1 - zoom)) / zoom)
-    console.log({ clientX, clientY, a: event.clientX, b: event.clientY })
+    const clientX = (event.clientX - panOffset.x * zoom + zoomOffset.x * (zoom - 1)) / zoom;
+    const clientY = (event.clientY - panOffset.y * zoom + zoomOffset.y * (zoom - 1)) / zoom;
+
     return { clientX, clientY };
   };
   const handleMouseDown = (event: MouseEvent) => {
@@ -138,22 +150,25 @@ function DrawingBoard() {
         initGhostCanvas();
       }
 
-      gctx.save();
+      gctx.scale(zoom, zoom);
+
+      const translateX = panOffset.x + (zoomOffset.x * (1 - zoom)) / zoom;
+      const translateY = panOffset.y + (zoomOffset.y * (1 - zoom)) / zoom;
+      gctx.translate(translateX, translateY);
       gctx.strokeStyle = "#ff0000"
       for (var i = elements.length - 1; i >= 0; i--) {
         drawShapeOnCanvas(gctx, elements[i]);
-        var imgData = gctx.getImageData(clientX, clientY, 1, 1);
+        var imgData = gctx.getImageData(event.clientX, event.clientY, 4, 4);
 
         if (imgData.data[3] > 0) {
           setIsDrag(true);
           setSelectedElement(i);
-          gctx.restore();
-          // clearContext(gctx);
+          setPointer({ x: clientX, y: clientY });
+          clearContext(gctx);
           return;
         }
       }
       setSelectedElement(-1);
-      gctx.restore();
       clearContext(gctx);
     } else {
       setIsDrawing(true);
@@ -178,13 +193,19 @@ function DrawingBoard() {
     if (isDrawing) {
 
       const index = elements.length - 1;
-      const { x, y } = elements[index];
+      let { x, y } = elements[index];
+      let height = clientY - y;
+      let width = clientX - x;
+      if (event.shiftKey) {
+        if (width > height) height = width;
+        else width = height;
+      }
       const newElement = {
         x,
         y,
         type: toolList[tool],
-        width: clientX - x,
-        height: clientY - y,
+        width: width,
+        height: height,
         strokeWidth: toolProps.strokeWidth,
         stroke: toolProps.stroke,
         fill: toolProps.fill,
@@ -199,10 +220,10 @@ function DrawingBoard() {
 
     } else if (isDrag) {
 
-      const { type, stroke, strokeWidth, fill, fillColor, rotation, width, height } = elements[selectedElement];
+      const { x, y, type, stroke, strokeWidth, fill, fillColor, rotation, width, height } = elements[selectedElement];
       const newElement = {
-        x: clientX,
-        y: clientY,
+        x: x + clientX - pointer.x,
+        y: y + clientY - pointer.y,
         type,
         width,
         height,
@@ -216,116 +237,24 @@ function DrawingBoard() {
       const elementsClone = [...elements];
       elementsClone[selectedElement] = newElement;
       setElements(elementsClone);
+      setPointer({ x: clientX, y: clientY })
     }
   }
   const handleMouseUp = (_event: MouseEvent) => {
     setIsDrawing(false);
     setIsDrag(false);
+    handleToolClick(0);
   }
 
-
-  const handleTouchStart = (e: TouchEvent<HTMLCanvasElement>) => {
-    const { clientX, clientY } = e.touches[0];
-    if (tool == 0) {
-
-      if (!ghostCanvas) {
-        initGhostCanvas();
-      }
-
-      gctx.save();
-      gctx.scale(zoom, zoom);
-      gctx.translate(panOffset.x / zoom, panOffset.y / zoom);
-      for (var i = elements.length - 1; i >= 0; i--) {
-        drawShapeOnCanvas(gctx, elements[i]);
-        var imgData = gctx.getImageData(clientX, clientY, 1, 1);
-
-        if (imgData.data[3] > 0) {
-          setIsDrag(true);
-          setSelectedElement(i);
-          clearContext(gctx);
-          return;
-        }
-      }
-      gctx.restore();
-      setSelectedElement(-1);
-      clearContext(gctx);
-    } else {
-      setIsDrawing(true);
-      const element = {
-        x: clientX,
-        y: clientY,
-        type: toolList[tool],
-        width: 0,
-        height: 0,
-        strokeWidth: toolProps.strokeWidth,
-        stroke: toolProps.stroke,
-        fill: toolProps.fill,
-        fillColor: toolProps.fillColor,
-        rotation: 0,
-        updatedAt: Date.now()
-      };
-      setElements(prevElements => [...prevElements, element])
-    }
-  }
-  const handleTouchMove = (e: TouchEvent<HTMLCanvasElement>) => {
-    const { clientX, clientY } = e.touches[0];
-    if (isDrawing) {
-
-      const index = elements.length - 1;
-      const { x, y } = elements[index];
-      const newElement = {
-        x,
-        y,
-        type: toolList[tool],
-        width: clientX - x,
-        height: clientY - y,
-        strokeWidth: toolProps.strokeWidth,
-        stroke: toolProps.stroke,
-        fill: toolProps.fill,
-        fillColor: toolProps.fillColor,
-        rotation: 0,
-        updatedAt: Date.now()
-      };
-
-      const elementsClone = [...elements];
-      elementsClone[index] = newElement;
-      setElements(elementsClone);
-
-    } else if (isDrag) {
-
-      const { type, stroke, strokeWidth, fill, fillColor, rotation, width, height } = elements[selectedElement];
-      const newElement = {
-        x: clientX,
-        y: clientY,
-        type,
-        width,
-        height,
-        strokeWidth,
-        stroke,
-        fillColor,
-        fill,
-        rotation,
-        updatedAt: Date.now()
-      }
-      const elementsClone = [...elements];
-      elementsClone[selectedElement] = newElement;
-      setElements(elementsClone);
-    }
-  }
-  const handleTouchUp = (_e: TouchEvent<HTMLCanvasElement>) => {
-    setIsDrawing(false);
-    setIsDrag(false);
-  }
 
   const handleScroll = (e: WheelEvent) => {
     e.preventDefault();
     if (e.ctrlKey === true) {
       zoomCanvas(e.deltaY * -0.01);
-      // console.log(e)
       setZoomOffset({ x: e.clientX, y: e.clientY });
     } else {
       setPanOffset(prevState => {
-        return { x: (prevState.x - e.deltaX), y: (prevState.y - e.deltaY) }
+        return { x: (prevState.x - e.deltaX * 0.2), y: (prevState.y - e.deltaY * 0.2) }
       }
       );
     }
@@ -342,13 +271,16 @@ function DrawingBoard() {
   return (
     <>
       <ul className="tools">
-        <li><button className={"tool-icon"} onClick={() => handleToolClick(0)}><img src={arrowIcon} width={20} height={20} /></button></li>
+        <li><button className={"tool-icon selected"} onClick={() => handleToolClick(0)}><img src={arrowIcon} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => handleToolClick(1)}><img src={square} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => handleToolClick(2)}><img src={circle} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => handleToolClick(3)}><img src={line} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => handleToolClick(4)}><img src={eraser} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => setElements([])}><img src={deleteIcon} width={20} height={20} /></button></li>
       </ul>
+      {/* <pre style={{ background: "white", position: "absolute", bottom: 0 }}> */}
+      {/*   {JSON.stringify(params)} */}
+      {/* </pre> */}
       <ul style={{ marginTop: "40px", position: "absolute" }}>
         <li>
           <input
@@ -415,9 +347,7 @@ function DrawingBoard() {
           }}>
             {new Intl.NumberFormat("en-US", { style: "percent" }).format(zoom)}
           </span>
-          <span>
-            {JSON.stringify(panOffset)}
-          </span>
+          <br />
         </li>
       </ul>
 
@@ -431,10 +361,10 @@ function DrawingBoard() {
         onMouseUp={(e) => handleMouseUp(e)}
         onMouseMove={(e) => handleMouseMove(e)}
         onMouseOut={(e) => handleMouseUp(e)}
-        onTouchStart={(e) => handleTouchStart(e)}
-        onTouchEnd={(e) => handleTouchUp(e)}
-        onTouchMove={(e) => handleTouchMove(e)}
-        onTouchCancel={(e) => handleTouchUp(e)}
+      // onTouchStart={(e) => handleTouchStart(e)}
+      // onTouchEnd={(e) => handleTouchUp(e)}
+      // onTouchMove={(e) => handleTouchMove(e)}
+      // onTouchCancel={(e) => handleTouchUp(e)}
       >
         Drawing Canvas
       </canvas>
@@ -457,14 +387,13 @@ const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvas
 
     const handleStop = (_e: Event) => {
       const blobOfChunks = new Blob(chunks.current, { 'type': 'video/webm;codecs=h264' });
+
       const videoURI = URL.createObjectURL(blobOfChunks);
-      console.log({ videoURI, chunks });
 
       setVideoURL(videoURI);
     };
 
     const handleDataAvailable = (e: BlobEvent) => {
-      console.log(e.data);
       chunks.current = [e.data];
     };
 
@@ -490,14 +419,12 @@ const VideoRecordingComponent = ({ canvasRef, recordCanvasState, setRecordCanvas
 
   const recordCanvas = useCallback(() => {
     if (mediaRecorder) {
-      console.log("part1");
       mediaRecorder.start();
       setRecordCanvasState(prevState => !prevState);
     }
   }, [mediaRecorder, recordCanvasState]);
   const stopRecording = useCallback(() => {
     if (mediaRecorder) {
-      console.log("part2");
       mediaRecorder.stop();
       setRecordCanvasState(prevState => !prevState);
     }
