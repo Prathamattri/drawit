@@ -32,6 +32,7 @@ function DrawingBoard() {
   const [zoom, setZoom] = useState<number>(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isErasing, setIsErasing] = useState(false);
   const [elements, setElements] = useState<CanvasElementsProps[]>(JSON.parse(localStorage.getItem("drawingApp") || "[]"));
   const [tool, setTool] = useState<number>(0);
   const [toolProps, setToolProps] = useState({ strokeWidth: 3, stroke: "#000000", fill: false, fillColor: "#658afe" });
@@ -77,11 +78,11 @@ function DrawingBoard() {
     }
   }
 
-  const deleteSelected = (selectedElement: number) => {
-    setElements((prevElement) => {
-      return prevElement.filter((_, index) => index != selectedElement);
-    })
-  }
+  // const deleteSelected = (selectedElement: number) => {
+  //   setElements((prevElement) => {
+  //     return prevElement.filter((_, index) => index != selectedElement);
+  //   })
+  // }
   const zoomCanvas = (deltaY: number) => {
     setZoom(prevState => Math.max(Math.min(prevState + deltaY, 5), 0.2));
   }
@@ -175,6 +176,10 @@ function DrawingBoard() {
       }
       setSelectedElement(-1);
       clearContext(gctx);
+    } else if (tool == 4) {
+      if (!isErasing) setIsErasing(true);
+      alert("Erase Feature In Development");
+      handleToolClick(0);
     } else {
       setIsDrawing(true);
       const element = {
@@ -342,7 +347,9 @@ function DrawingBoard() {
             </div>
           </div>
 
-          <label>
+          <label style={{ fontWeight: 700, fontSize: "1.5rem", padding: "1rem", border: "1px solid black", textAlign: "center", cursor: "pointer", background: toolProps.fill ? "black" : 'none', color: toolProps.fill ? "white" : "initial", transition: "all 200ms ease-in-out" }}>
+            Fill
+            <br />
             <input
               type="checkbox"
               title="fill"
@@ -354,8 +361,10 @@ function DrawingBoard() {
                     fill: e.target.checked
                   }
                 })
-              }
-              } />Fill</label>
+              }}
+              hidden
+            />
+          </label>
 
           <div>
             <h2>Fill Color</h2>
