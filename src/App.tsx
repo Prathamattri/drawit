@@ -77,6 +77,11 @@ function DrawingBoard() {
     }
   }
 
+  const deleteSelected = (selectedElement: number) => {
+    setElements((prevElement) => {
+      return prevElement.filter((_, index) => index != selectedElement);
+    })
+  }
   const zoomCanvas = (deltaY: number) => {
     setZoom(prevState => Math.max(Math.min(prevState + deltaY, 5), 0.2));
   }
@@ -267,6 +272,22 @@ function DrawingBoard() {
     tools[toolNum].classList.add("selected");
   }
 
+  const colorOptions = ["#660708", "#ba181b", "#e5383b", "#03045e", "#00b4d8", "#caf0f8", "#77bfa3", "#bfd8bd", "#edeec9", "#5a189a", "#9d4edd", "#e0aaff", "#212529", "#495057", "#dee2e6"]
+
+  const strokeWidthOptions = [
+    {
+      title: "SM",
+      strokeWidth: 1
+    },
+    {
+      title: "MD",
+      strokeWidth: 3
+    },
+    {
+      title: "XL",
+      strokeWidth: 5
+    },
+  ]
 
   return (
     <>
@@ -278,80 +299,97 @@ function DrawingBoard() {
         <li><button className={"tool-icon"} onClick={() => handleToolClick(4)}><img src={eraser} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => setElements([])}><img src={deleteIcon} width={20} height={20} /></button></li>
       </ul>
-      {/* <pre style={{ background: "white", position: "absolute", bottom: 0 }}> */}
-      {/*   {JSON.stringify(params)} */}
-      {/* </pre> */}
-      <ul style={{ marginTop: "40px", position: "absolute" }}>
-        <li>
-          <input
-            type="color"
-            value={toolProps.stroke}
+      <div className="properties-panel">
+        <div style={{ display: "flex", flexDirection: "column", rowGap: "1rem", padding: "1.3rem", }}>
+          <h2>Stroke Color</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: "repeat(3, 1fr)", columnGap: "0.5rem", rowGap: "0.25rem", overflowY: "scroll", height: "6.5rem", padding: "0 1rem 0 0" }}>
+            {
+              colorOptions.map((color, ind) => (
+                <div
+                  key={ind}
+                  className="color-icon"
+                  style={{ "--icon-clr": color } as React.CSSProperties}
+                  onClick={() => setToolProps((prevProps) => {
+                    return {
+                      ...prevProps,
+                      stroke: color
+                    }
+                  })}>
+                </div>
+              ))
+            }
+          </div>
 
-            onChange={(e) => setToolProps((prevProps) => {
-              return {
-                ...prevProps,
-                stroke: e.target.value
+          <div>
+            <h2>Stroke Width</h2>
+            <br />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "1rem" }}>
+              {
+                strokeWidthOptions.map((option, ind) => (
+                  <div
+                    key={ind}
+                    className="stroke-width-btn"
+                    onClick={() => setToolProps(prevProps => ({
+                      ...prevProps,
+                      strokeWidth: option.strokeWidth
+                    }))}
+                    style={{ "--stroke-width": `${(ind + 1) * 2}px` } as React.CSSProperties}
+                  >
+                    <span ></span>
+                  </div>
+                ))
               }
-            })}
-          /><label>Stroke color</label>
-          <br />
-          <input
-            min={1}
-            max={5}
-            step={2}
-            type="number"
-            value={toolProps.strokeWidth}
-            onChange={(e) => {
-              setToolProps((prevProps) => {
-                return {
-                  ...prevProps,
-                  strokeWidth: parseInt(e.target.value)
-                }
-              })
-            }
-            } /><label>Stroke width</label>
-        </li>
-        <li><label>
-          <input
-            type="checkbox"
-            title="fill"
-            checked={toolProps.fill}
-            onChange={(e) => {
-              setToolProps((prevProps) => {
-                return {
-                  ...prevProps,
-                  fill: e.target.checked
-                }
-              })
-            }
-            } />Fill</label>
-        </li>
-        <li>
-          <input
-            type="color"
-            value={toolProps.fillColor}
-            onChange={(e) => {
-              setToolProps((prevProps) => {
-                return {
-                  ...prevProps,
-                  fillColor: e.target.value,
-                }
-              })
-            }
-            } /> <label>Fill Color</label>
-        </li>
-        <li>
-          <span onClick={() => {
-            setZoom(1)
-            setZoomOffset({ x: 0, y: 0 })
-          }}>
-            {new Intl.NumberFormat("en-US", { style: "percent" }).format(zoom)}
-          </span>
-          <br />
-        </li>
-      </ul>
+            </div>
+          </div>
 
-      {true && <VideoRecordingComponent canvasRef={canvas} recordCanvasState={recordCanvasState} setRecordCanvasState={setRecordCanvasState} />}
+          <label>
+            <input
+              type="checkbox"
+              title="fill"
+              checked={toolProps.fill}
+              onChange={(e) => {
+                setToolProps((prevProps) => {
+                  return {
+                    ...prevProps,
+                    fill: e.target.checked
+                  }
+                })
+              }
+              } />Fill</label>
+
+          <div>
+            <h2>Fill Color</h2>
+            <br />
+            <div style={{ display: 'grid', gridTemplateColumns: "repeat(3, 1fr)", columnGap: "0.5rem", rowGap: "0.25rem", overflowY: "scroll", height: "6.5rem", padding: "0 1rem 0 0" }}>
+              {
+                colorOptions.map((color, ind) => (
+                  <div
+                    key={ind}
+                    className="color-icon"
+                    style={{ "--icon-clr": color } as React.CSSProperties}
+                    onClick={() => setToolProps((prevProps) => {
+                      return {
+                        ...prevProps,
+                        fillColor: color
+                      }
+                    })}>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <VideoRecordingComponent canvasRef={canvas} recordCanvasState={recordCanvasState} setRecordCanvasState={setRecordCanvasState} />
+      <div
+        className="zoom-tool"
+        onClick={() => {
+          setZoom(1)
+          setZoomOffset({ x: 0, y: 0 })
+        }}>
+        {new Intl.NumberFormat("en-US", { style: "percent" }).format(zoom)}
+      </div>
       <canvas
         ref={canvas}
         id="canvas"
@@ -360,7 +398,7 @@ function DrawingBoard() {
         onMouseDown={(e) => handleMouseDown(e)}
         onMouseUp={(e) => handleMouseUp(e)}
         onMouseMove={(e) => handleMouseMove(e)}
-        onMouseOut={(e) => handleMouseUp(e)}
+      // onMouseOut={(e) => handleMouseUp(e)}
       // onTouchStart={(e) => handleTouchStart(e)}
       // onTouchEnd={(e) => handleTouchUp(e)}
       // onTouchMove={(e) => handleTouchMove(e)}

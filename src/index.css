@@ -46,3 +46,57 @@ body {
   right: 0;
   bottom: 0;
 }
+
+.properties-panel {
+  display: flex;
+  position: absolute;
+  top: 5rem;
+  left: 1rem;
+  min-width: 15rem;
+  width: 15vw;
+  background: #eee;
+  border-radius: 0.25rem;
+  box-shadow: 0 0 10px 0 #bdbdbd;
+}
+
+.properties-panel * {
+  scrollbar-width: none;
+}
+
+.color-icon {
+  background: var(--icon-clr);
+  width: 3rem;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  border: 1px solid black;
+}
+
+.zoom-tool {
+  position: absolute;
+  bottom: 1rem; 
+  left: 0.25rem;
+  padding: 1rem 1.2rem;
+  color: #fff;
+  background: #535353;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.stroke-width-btn {
+  background: #fff;
+  padding: 1rem;
+  border: 1px solid black;
+  width: 3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 1;
+  border-radius: 3px;
+}
+
+.stroke-width-btn > span {
+  width: 15px;
+  height: var(--stroke-width);
+  background-color: black;
+  display: block;
+}
