@@ -23,20 +23,20 @@ interface CanvasElementsProps {
 function DrawingBoard() {
   const toolList = ["selection", "rectangle", "circle", "line", "eraser"];
 
-  const [selectedElement, setSelectedElement] = useState<number>(-1)
+  const [selectedElement, setSelectedElement] = useState(-1)
   const [isDrag, setIsDrag] = useState(false);
   // const [isResizeDrag, setIsResizeDrag] = useState(false);
 
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
   const [zoomOffset, setZoomOffset] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState<number>(1);
+  const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
   const [isDrawing, setIsDrawing] = useState(false);
   const [isErasing, setIsErasing] = useState(false);
   const [elements, setElements] = useState<CanvasElementsProps[]>(JSON.parse(localStorage.getItem("drawingApp") || "[]"));
-  const [tool, setTool] = useState<number>(0);
+  const [tool, setTool] = useState(0);
   const [toolProps, setToolProps] = useState({ strokeWidth: 3, stroke: "#000000", fill: false, fillColor: "#658afe" });
-  const [recordCanvasState, setRecordCanvasState] = useState<boolean>(false);
+  const [recordCanvasState, setRecordCanvasState] = useState(false);
 
   //
   //Creating ghost canvas for selection and resizing the canvas objects
@@ -78,11 +78,13 @@ function DrawingBoard() {
     }
   }
 
-  // const deleteSelected = (selectedElement: number) => {
-  //   setElements((prevElement) => {
-  //     return prevElement.filter((_, index) => index != selectedElement);
-  //   })
-  // }
+  const deleteSelected = useCallback(() => {
+    setElements((prevElement) => {
+      const currentSelected = selectedElement;
+      return prevElement.filter((_, index) => index !== currentSelected);
+    })
+  }, []);
+
   const zoomCanvas = (deltaY: number) => {
     setZoom(prevState => Math.max(Math.min(prevState + deltaY, 5), 0.2));
   }
@@ -130,6 +132,7 @@ function DrawingBoard() {
 
   useEffect(() => {
     canvas.current?.addEventListener("wheel", (e) => handleScroll(e), { passive: false })
+    document.addEventListener("keydown", handleKeyPress);
     return () => {
       canvas.current?.removeEventListener("wheel", handleScroll);
     }
@@ -138,6 +141,33 @@ function DrawingBoard() {
   useEffect(() => {
     drawCanvas();
   }, [elements, zoom, panOffset])
+
+  const handleKeyPress = (e: KeyboardEvent) => {
+    if (e.key === "Delete") {
+      deleteSelected();
+    } else {
+      switch (e.key) {
+        case 'v':
+        case '0':
+          handleToolClick(0);
+          break;
+        case 'r':
+        case '1':
+          handleToolClick(1);
+          break;
+        case 'c':
+        case '2':
+          handleToolClick(2);
+          break;
+        case 'l':
+        case '3':
+          handleToolClick(3);
+          break;
+        default:
+          break;
+      }
+    }
+  }
 
   const clearContext = (ctx: CanvasRenderingContext2D) => {
     ctx.clearRect(0, 0, canvas.current!.width, canvas.current!.height);
@@ -164,7 +194,7 @@ function DrawingBoard() {
       gctx.strokeStyle = "#ff0000"
       for (var i = elements.length - 1; i >= 0; i--) {
         drawShapeOnCanvas(gctx, elements[i]);
-        var imgData = gctx.getImageData(event.clientX, event.clientY, 4, 4);
+        var imgData = gctx.getImageData(event.clientX, event.clientY, 6, 6);
 
         if (imgData.data[3] > 0) {
           setIsDrag(true);
@@ -253,18 +283,23 @@ function DrawingBoard() {
   const handleMouseUp = (_event: MouseEvent) => {
     setIsDrawing(false);
     setIsDrag(false);
-    handleToolClick(0);
+    // handleToolClick(0);
   }
 
 
   const handleScroll = (e: WheelEvent) => {
     e.preventDefault();
     if (e.ctrlKey === true) {
-      zoomCanvas(e.deltaY * -0.01);
+      zoomCanvas(e.deltaY * -0.001);
       setZoomOffset({ x: e.clientX, y: e.clientY });
+    } else if (e.shiftKey === true) {
+      setPanOffset(prevState => {
+        return { x: (prevState.x - e.deltaY * 0.2), y: (prevState.y) }
+      }
+      )
     } else {
       setPanOffset(prevState => {
-        return { x: (prevState.x - e.deltaX * 0.2), y: (prevState.y - e.deltaY * 0.2) }
+        return { x: (prevState.x), y: (prevState.y - e.deltaY * 0.2) }
       }
       );
     }
@@ -296,6 +331,9 @@ function DrawingBoard() {
 
   return (
     <>
+      <span>
+        Selected Element: {selectedElement}
+      </span>
       <ul className="tools">
         <li><button className={"tool-icon selected"} onClick={() => handleToolClick(0)}><img src={arrowIcon} width={20} height={20} /></button></li>
         <li><button className={"tool-icon"} onClick={() => handleToolClick(1)}><img src={square} width={20} height={20} /></button></li>
