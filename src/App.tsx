@@ -24,6 +24,8 @@ function DrawingBoard() {
   const toolList = ["selection", "rectangle", "circle", "line", "eraser"];
 
   const [selectedElement, setSelectedElement] = useState(-1)
+  const selectedElementIndexRef = useRef(-1)
+
   const [isDrag, setIsDrag] = useState(false);
   // const [isResizeDrag, setIsResizeDrag] = useState(false);
 
@@ -78,12 +80,6 @@ function DrawingBoard() {
     }
   }
 
-  const deleteSelected = useCallback(() => {
-    setElements((prevElement) => {
-      const currentSelected = selectedElement;
-      return prevElement.filter((_, index) => index !== currentSelected);
-    })
-  }, []);
 
   const zoomCanvas = (deltaY: number) => {
     setZoom(prevState => Math.max(Math.min(prevState + deltaY, 5), 0.2));
@@ -130,13 +126,23 @@ function DrawingBoard() {
     }
   }
 
+  function deleteSelected(currentSelected: number) {
+    setElements((prevElement) => {
+      return prevElement.filter((_, index) => index !== currentSelected);
+    })
+  }
   useEffect(() => {
     canvas.current?.addEventListener("wheel", (e) => handleScroll(e), { passive: false })
     document.addEventListener("keydown", handleKeyPress);
     return () => {
       canvas.current?.removeEventListener("wheel", handleScroll);
+      document.removeEventListener("keydown", () => { });
     }
   }, [])
+
+  useEffect(() => {
+    selectedElementIndexRef.current = selectedElement;
+  }, [selectedElement])
 
   useEffect(() => {
     drawCanvas();
@@ -144,7 +150,8 @@ function DrawingBoard() {
 
   const handleKeyPress = (e: KeyboardEvent) => {
     if (e.key === "Delete") {
-      deleteSelected();
+      console.log(selectedElementIndexRef.current);
+      deleteSelected(selectedElementIndexRef.current);
     } else {
       switch (e.key) {
         case 'v':
@@ -445,6 +452,7 @@ function DrawingBoard() {
         onMouseDown={(e) => handleMouseDown(e)}
         onMouseUp={(e) => handleMouseUp(e)}
         onMouseMove={(e) => handleMouseMove(e)}
+        onKeyDown={(e: any) => handleKeyPress(e)}
       // onMouseOut={(e) => handleMouseUp(e)}
       // onTouchStart={(e) => handleTouchStart(e)}
       // onTouchEnd={(e) => handleTouchUp(e)}
