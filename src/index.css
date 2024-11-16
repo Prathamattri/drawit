@@ -12,17 +12,45 @@ body {
   overflow: hidden;
 }
 
-/* #canvas { */
-/*   background: #fff; */
-/* } */
+.tools {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+
+  ul {
+    display: flex;
+    list-style: none;
+    width: 100%;
+    justify-content: center;
+    background-color: #ccc;
+    padding: 0.5rem 0.25rem;
+  }
+}
 
 .tool-icon {
   border: none;
   padding: 10px;
   cursor: pointer;
-  background: #fff;
   border-radius: 3px;
   margin: 2px 5px;
+  position: relative;
+  background-color: transparent;
+
+  & .tool-num {
+    content: attr(--toolNum);
+    position: absolute;
+    width: 0.8rem;
+    aspect-ratio: 1;
+    color: black;
+    bottom: 0;
+    right: 0;
+  }
+
+  & img {
+    width: 1.25rem;
+    aspect-ratio: 1;
+  }
 }
 
 .tool-icon:hover {
@@ -31,15 +59,9 @@ body {
 
 .tool-icon.selected {
   background: #aeaeae;
+  box-shadow: -2px 0px 7px 0px #8c8c8c80;
 }
 
-.tools {
-  position: absolute;
-  display: flex;
-  list-style: none;
-  width: 100%;
-  justify-content: center;
-}
 
 #videoPlayer {
   position: absolute;
@@ -49,23 +71,23 @@ body {
 
 .properties-panel {
   display: flex;
+  flex-direction: column;
   position: absolute;
+  max-width: 300px;
   top: 5rem;
   left: 1rem;
-  min-width: 15rem;
-  width: 15vw;
   background: #eee;
   border-radius: 0.25rem;
   box-shadow: 0 0 10px 0 #bdbdbd;
-}
 
-.properties-panel * {
-  scrollbar-width: none;
+  & h1 {
+    padding: 1.25rem 1rem;
+    text-transform: uppercase;
+  }
 }
 
 .color-icon {
   background: var(--icon-clr);
-  width: 3rem;
   aspect-ratio: 1;
   border-radius: 4px;
   border: 1px solid black;
@@ -73,7 +95,7 @@ body {
 
 .zoom-tool {
   position: absolute;
-  bottom: 1rem; 
+  bottom: 1rem;
   left: 0.25rem;
   padding: 1rem 1.2rem;
   color: #fff;
@@ -94,7 +116,7 @@ body {
   border-radius: 3px;
 }
 
-.stroke-width-btn > span {
+.stroke-width-btn>span {
   width: 15px;
   height: var(--stroke-width);
   background-color: black;
